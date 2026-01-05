@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-manager-ui
+  namespace: tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-manager
+  template:
+    metadata:
+      labels:
+        app: k8s-manager
+    spec:
+      # serviceAccountName: dev-manager-role
+      containers:
+      - name: oauth2-proxy
+        image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        ports:
+        - containerPort: 4180
+          protocol: TCP
+        args:
+        - --set-xauthrequest=true
+        - --pass-access-token=true
+        - --pass-authorization-header=true
+        - --pass-user-headers=true
+        - --session-cookie-minimal=false
+        - --cookie-refresh=50s
+        - --cookie-expire=1m
+        env:
+        - name: OAUTH2_PROXY_PROVIDER
+          value: "keycloak-oidc"
+        - name: OAUTH2_PROXY_CLIENT_ID
+          value: "k8sapp"
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          value: "7jt2DClytLx2dTTGKSx9IOIwpF4TPzJw"
+        - name: OAUTH2_PROXY_OIDC_ISSUER_URL
+          value: "http://10.152.183.137:8080/realms/k8sapp"
+        - name: OAUTH2_PROXY_BACKEND_LOGOUT_URL
+          value: "http://10.152.183.137:8080/realms/k8sapp/protocol/openid-connect/logout?id_token_hint={id_token}&post_logout_redirect_uri=http://proxy-server.local"
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          value: "KhPwtF46UtHfLQJ9bFr2X_SGworaduUY8zzp7nhNN0A="
+        - name: OAUTH2_PROXY_UPSTREAMS
+          value: http://localhost:5000/
+        - name: OAUTH2_PROXY_HTTP_ADDRESS
+          value: "0.0.0.0:4180"
+        - name: OAUTH2_PROXY_EMAIL_DOMAINS
+          value: "*"
+        - name: OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION
+          value: "true"
+        - name: OAUTH2_PROXY_REDIRECT_URL
+          value: "http://proxy-server.local"
+        - name: OAUTH2_PROXY_COOKIE_SECURE
+          value: "false"
+        - name: OAUTH2_PROXY_COOKIE_HTTPONLY
+          value: "true"
+        - name: OAUTH2_PROXY_SSL_INSECURE_SKIP_VERIFY
+          value: "true"
+        - name: OAUTH2_PROXY_SKIP_AUTH_REGEX
+          value: '^\/ping$'
+        - name: OAUTH2_PROXY_PASS_ACCESS_TOKEN
+          value: "false" # Não passa o token gigante para o Flask
+        - name: OAUTH2_PROXY_PASS_ID_TOKEN
+          value: "true"  # Passa apenas o ID básico
+        - name: OAUTH2_PROXY_SESSION_COOKIE_MINIMAL
+          value: "true"
+      - name: manager
+        image: vtrlucas/k8sapp:latest
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-manager-service
+  namespace: tools
+spec:
+  ports:
+    - port: 4180
+      targetPort: 4180
+      protocol: TCP
+      name: http
+  selector:
+    app: k8s-manager

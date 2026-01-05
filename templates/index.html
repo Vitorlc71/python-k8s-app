@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>K8s Dev Panel</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+</head>
+<body>
+    <h1>Gerenciador Kubernetes</h1>
+
+    <section>
+        <label>1. Selecione o Namespace:</label>
+        <select id="nsList" onchange="loadDeployments()">
+            <option value="">Escolha um namespace...</option>
+        </select>
+
+        <label>2. Selecione o App (Deployment):</label>
+        <select id="deployList">
+            <option value="">Aguardando namespace...</option>
+        </select>
+    </section>
+
+    <section id="actions" style="margin-top: 20px;">
+        <button onclick="handleAction('/restart')" style="background: #e53935; color: white;">Reiniciar App</button>
+        <hr>
+        <input type="number" id="replicaCount" value="1" min="0" style="width: 80px;">
+        <button onclick="handleAction('/scale')">Ajustar Réplicas</button>
+        <hr>
+        <a href="{{ url_for('logout') }}" class="btn btn-warning">
+            Sair do Sistema
+        </a>
+    </section>
+
+    <script>
+        fetch('/namespaces')
+            .then(res => res.json())
+            .then(data => {
+                const nsSelect = document.getElementById('nsList');
+                data.forEach(ns => {
+                    nsSelect.innerHTML += `<option value="${ns}">${ns}</option>`;
+                });
+            });
+
+        function loadDeployments() {
+            const ns = document.getElementById('nsList').value;
+            const deploySelect = document.getElementById('deployList');
+            
+            if (!ns) return;
+            deploySelect.innerHTML = '<option>Carregando...</option>';
+
+            fetch(`/deployments/${ns}`)
+                .then(res => res.json())
+                .then(data => {
+                    deploySelect.innerHTML = '';
+                    if (data.length === 0) {
+                        deploySelect.innerHTML = '<option>Nenhum deployment encontrado</option>';
+                    }
+                    data.forEach(d => {
+                        deploySelect.innerHTML += `<option value="${d.name}">${d.name} (${d.replicas} reps)</option>`;
+                    });
+                });
+        }
+
+        function handleAction(endpoint) {
+            const ns = document.getElementById('nsList').value;
+            const name = document.getElementById('deployList').value;
+            const replicas = document.getElementById('replicaCount').value;
+
+            if (!ns || !name) return alert("Selecione o namespace e o app!");
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    deployment_name: name, 
+                    namespace: ns,
+                    replicas: replicas
+                })
+            })
+            .then(res => res.json())
+            .then(data => alert(data.status || data.error))
+            .catch(err => alert("Erro na operação"));
+        }
+    </script>
+</body>
+</html>
